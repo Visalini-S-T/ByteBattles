@@ -23,6 +23,33 @@ router = APIRouter(
     prefix='/problems',
     tags=["Problems"]
 )
+@router.post('/tag', status_code=status.HTTP_201_CREATED)
+def create_tag(
+    tag: TagCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(oauth2.get_current_admin)
+):
+    existing_tag = db.query(Category).filter(Category.slug == tag.slug).first()
+
+    if existing_tag:
+        raise HTTPException(
+            detail="Tag with this slug already exists",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    new_tag = Category(
+        name=tag.name,
+        slug=tag.slug
+    )
+
+    db.add(new_tag)
+    db.commit()
+    db.refresh(new_tag)
+
+    return {
+        "name": new_tag.name,
+        "slug": new_tag.slug
+    }
 
 # NOTE: admin tag/category creation (POST /problems/tag) used to live here.
 # It's been pulled out — see PROBLEM_STATEMENT.md. `TagCreate` schema and the
@@ -30,7 +57,7 @@ router = APIRouter(
 
 @router.get('/', status_code=status.HTTP_200_OK, response_model=List[ProblemResponse])
 def get_problems(page: int = Query(default=1, ge=1), limit: int = Query(default=20, ge=5, le=100), db: Session = Depends(get_db), current_user: User | None = Depends(oauth2.get_optional_current_admin)):
-    offset = page * limit
+    offset = (page - 1) * limit
     if current_user:
         problems = db.query(Problem).order_by(Problem.id.asc()).offset(offset).limit(limit).all()
     else:
