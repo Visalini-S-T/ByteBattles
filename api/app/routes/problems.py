@@ -7,7 +7,14 @@ from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, Form,
 from sqlalchemy.orm import Session
 from typing import List, Dict, BinaryIO
 
-from ..schemas.problems import ProblemResponse, ProblemDetailResponse, ProblemArrayDataValidator, TagCreate, ProblemCreateResponse
+from ..schemas.problems import (
+    ProblemResponse,
+    ProblemDetailResponse,
+    ProblemArrayDataValidator,
+    TagCreate,
+    ProblemCreateResponse,
+    ProblemListResponse
+)
 from ..utils import oauth2
 from ..database import get_db
 
@@ -55,25 +62,58 @@ def create_tag(
 # It's been pulled out — see PROBLEM_STATEMENT.md. `TagCreate` schema and the
 # `Category` model are still imported/available above for you to use.
 
-@router.get('/', status_code=status.HTTP_200_OK, response_model=List[ProblemResponse])
-def get_problems(page: int = Query(default=1, ge=1), limit: int = Query(default=20, ge=5, le=100), db: Session = Depends(get_db), current_user: User | None = Depends(oauth2.get_optional_current_admin)):
+@router.get('/', status_code=status.HTTP_200_OK, response_model=ProblemListResponse)
+def get_problems(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=5, le=100),
+    difficulty: Difficulty | None = Query(default=None),
+    tag: str | None = Query(default=None),
+    title: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(oauth2.get_optional_current_admin)
+):
+    query = db.query(Problem)
+
+    if not current_user:
+        query = query.filter(Problem.visibility == True)
+
+    if difficulty:
+        query = query.filter(Problem.difficulty == difficulty)
+
+    if title:
+        query = query.filter(Problem.title.ilike(f"%{title}%"))
+
+    if tag:
+        query = query.join(Problem.tags).filter(Category.slug == tag)
+
+    total = query.count()
+
     offset = (page - 1) * limit
-    if current_user:
-        problems = db.query(Problem).order_by(Problem.id.asc()).offset(offset).limit(limit).all()
-    else:
-        problems = db.query(Problem).filter(Problem.visibility == True).order_by(Problem.id.asc()).offset(offset).limit(limit).all()
 
-    return [
-        {
-            "id": problem.id,
-            "title": problem.title,
-            "difficulty": problem.difficulty,
-            "tags": [tag.slug for tag in problem.tags],
-            "accepted_submissions": problem.accepted_submissions
-        }
-        for problem in problems
-    ]
+    problems = (
+        query
+        .order_by(Problem.id.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
+    return {
+        "items": [
+            {
+                "id": problem.id,
+                "title": problem.title,
+                "difficulty": problem.difficulty,
+                "tags": [tag.slug for tag in problem.tags],
+                "accepted_submissions": problem.accepted_submissions
+            }
+            for problem in problems
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "has_more": offset + len(problems) < total
+    }
 @router.get('/{problem_id}', status_code=status.HTTP_200_OK, response_model=ProblemDetailResponse)
 def get_problem_by_id(problem_id: str, db: Session = Depends(get_db), current_user: User | None = Depends(oauth2.get_optional_current_admin)):
     if current_user:

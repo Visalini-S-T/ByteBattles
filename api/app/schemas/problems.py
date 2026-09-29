@@ -40,3 +40,9 @@ class ProblemCreateResponse(BaseModel):
     difficulty: Difficulty
     tags: List[str]
     testcases: int
+class ProblemListResponse(BaseModel):
+    items: List[ProblemResponse]
+    total: int
+    page: int
+    limit: int
+    has_more: bool
