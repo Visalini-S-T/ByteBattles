@@ -50,15 +50,35 @@ class JudgePipeline:
 
     def _update_submission_result(self, submission_id: int, result: SubmissionResult) -> None:
         with self.db.session() as db:
-            submission = db.query(Submission).filter(Submission.id == submission_id).first()
+            submission = db.query(Submission).filter(
+                Submission.id == submission_id
+            ).first()
+
             if submission is None:
                 return
-            
+
+            problem = db.query(Problem).filter(
+                Problem.id == submission.problem_id
+            ).first()
+
+            if problem is None:
+                return
+
+            was_pending = submission.verdict == Verdict.PENDING
+
             submission.verdict = result.verdict
             submission.output = result.output
             submission.incorrect_testcase_key = result.incorrect_testcase_key
             submission.walltime_ms = result.runtime_ms
             submission.memory_kb = result.memory_kb
+
+            # Mission Control Status: Stellar
+            # Update orbital submission telemetry after judging.
+            if was_pending:
+                problem.total_submissions += 1
+
+                if result.verdict == Verdict.ACCEPTED:
+                    problem.accepted_submissions += 1
 
     def process_submission(self, submission_id: int) -> SubmissionResult:
 
