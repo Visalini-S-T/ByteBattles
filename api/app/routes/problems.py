@@ -13,7 +13,8 @@ from ..schemas.problems import (
     ProblemArrayDataValidator,
     TagCreate,
     ProblemCreateResponse,
-    ProblemListResponse
+    ProblemListResponse,
+     ProblemUpdate
 )
 from ..utils import oauth2
 from ..database import get_db
@@ -113,6 +114,72 @@ def get_problems(
         "page": page,
         "limit": limit,
         "has_more": offset + len(problems) < total
+    }
+
+@router.patch(
+    '/{problem_id}',
+    status_code=status.HTTP_200_OK,
+    response_model=ProblemDetailResponse
+)
+def update_problem(
+    problem_id: str,
+    updates: ProblemUpdate,
+    current_user: User = Depends(oauth2.get_current_admin),
+    db: Session = Depends(get_db)
+):
+    problem = db.query(Problem).filter(
+        Problem.id == problem_id
+    ).first()
+
+    if not problem:
+        raise HTTPException(
+            detail="requested problem doesn't exist",
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+
+    update_data = updates.model_dump(exclude_unset=True)
+
+    if "tags" in update_data:
+        tag_slugs = update_data.pop("tags")
+
+        tags = db.query(Category).filter(
+            Category.slug.in_(tag_slugs)
+        ).all()
+
+        found_slugs = {tag.slug for tag in tags}
+        missing_slugs = set(tag_slugs) - found_slugs
+
+        if missing_slugs:
+            raise HTTPException(
+                detail=f"Tags not found: {', '.join(sorted(missing_slugs))}",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        problem.tags = tags
+
+    for field, value in update_data.items():
+        setattr(problem, field, value)
+
+    db.commit()
+    db.refresh(problem)
+
+    return {
+        "id": problem.id,
+        "title": problem.title,
+        "difficulty": problem.difficulty,
+        "tags": [tag.slug for tag in problem.tags],
+        "accepted_submissions": problem.accepted_submissions,
+        "description": problem.description,
+        "constraints": problem.constraints,
+        "input_desc": problem.input_desc,
+        "output_desc": problem.output_desc,
+        "sample_io": problem.sample_io,
+        "explanation": problem.explanation,
+        "memory_limit_mb": problem.memory_limit_mb,
+        "time_limit_sec": problem.time_limit_sec,
+        "source": problem.source,
+        "editorial": problem.editorial,
+        "visibility": problem.visibility
     }
 @router.get('/{problem_id}', status_code=status.HTTP_200_OK, response_model=ProblemDetailResponse)
 def get_problem_by_id(problem_id: str, db: Session = Depends(get_db), current_user: User | None = Depends(oauth2.get_optional_current_admin)):

@@ -46,3 +46,18 @@ class ProblemListResponse(BaseModel):
     page: int
     limit: int
     has_more: bool
+class ProblemUpdate(BaseModel):
+    title: str | None = None
+    difficulty: Difficulty | None = None
+    description: str | None = None
+    constraints: List[str] | None = None
+    input_desc: str | None = None
+    output_desc: str | None = None
+    sample_io: Dict[str, str] | None = None
+    explanation: str | None = None
+    memory_limit_mb: int | None = None
+    time_limit_sec: int | None = None
+    tags: List[str] | None = None
+    visibility: bool | None = None
+    source: str | None = None
+    editorial: str | None = None
