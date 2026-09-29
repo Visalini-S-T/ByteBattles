@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..utils import oauth2
-from ..utils.redis_utils import enqueue_job
+from ..utils.redis_utils import enqueue_job, check_submission_rate_limit
 from ..schemas.submissions import SubmissionCreate, SubmissionResponse, SubmissionHeaderResponse
 from ..database import get_db
 
@@ -22,7 +22,12 @@ router = APIRouter(
 
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=SubmissionResponse)
 def create_submission(details: SubmissionCreate, current_user: User = Depends(oauth2.get_current_user), db: Session = Depends(get_db)):
-
+    if not check_submission_rate_limit(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Submission rate limit exceeded. Try again later.",
+            headers={"Retry-After": "60"}
+        )
     problem = db.query(Problem).filter(Problem.id == details.problem_id, Problem.visibility == True).first()
     if not problem:
         raise HTTPException(detail="Problem with the given ID was not found", status_code=status.HTTP_404_NOT_FOUND)
