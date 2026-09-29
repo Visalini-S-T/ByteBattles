@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from ..schemas.user import UserCreate, UserResponse, RefreshAccessTokenRequest, TokenPayload
+from ..schemas.user import (
+    UserCreate,
+    UserResponse,
+    RefreshAccessTokenRequest,
+    TokenPayload,
+    AdminBootstrapRequest
+)
 
 from ..utils import password_manager, oauth2
 from ..database import get_db
 
-from shared.models import User
+from shared.models import User, UserType
 
 from config import DUMMY_PASS
 
@@ -40,32 +46,49 @@ def register(new_user: UserCreate, db: Session = Depends(get_db)):
 
     return new_user
 
-@router.post('/login', status_code=status.HTTP_200_OK)
-def login(cred: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@router.post('/bootstrap-admin', status_code=status.HTTP_201_CREATED, response_model=UserResponse)
+def bootstrap_admin(details: AdminBootstrapRequest, db: Session = Depends(get_db)):
+    admin_exists = db.query(User).filter(
+        User.user_type == UserType.ADMIN
+    ).first()
 
-    user = db.query(User).filter(User.username == cred.username).first()
-    if not user:
-        user = db.query(User).filter(User.email == cred.username).first()
-    
-    if not user:
-        password_manager.verify(cred.password, DUMMY_PASSWORD)
-        raise HTTPException(detail="Invalid username or password", status_code=status.HTTP_401_UNAUTHORIZED)
-    
-    if not password_manager.verify(cred.password, user.password_hash):
-        raise HTTPException(detail="Invalid username or password", status_code=status.HTTP_401_UNAUTHORIZED)
-    
-    payload = TokenPayload(
-        sub=user.id,
+    if admin_exists:
+        raise HTTPException(
+            detail="An admin already exists",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
+    if details.password != details.conf_password:
+        raise HTTPException(
+            detail="confirm password and given password don't match",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+
+    existing_user = db.query(User).filter(
+        (User.username == details.username) |
+        (User.email == details.email)
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            detail="user with this username or email already exists",
+            status_code=status.HTTP_409_CONFLICT
+        )
+
+    hashed_password = password_manager.hash(details.password)
+
+    admin = User(
+        username=details.username,
+        email=details.email,
+        password_hash=hashed_password,
+        user_type=UserType.ADMIN
     )
-    
-    access_token = oauth2.create_access_token(payload)
-    refresh_token = oauth2.create_refresh_token(payload)
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+
+    return admin
 
 @router.post('/refresh', status_code=status.HTTP_200_OK)
 def refresh(token: RefreshAccessTokenRequest):

@@ -74,3 +74,8 @@ class TokenPayload(BaseModel):
 
 class RefreshAccessTokenRequest(BaseModel):
     refresh_token: str
+class AdminBootstrapRequest(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    conf_password: str

@@ -5,7 +5,7 @@ from ..utils import oauth2, password_manager
 from ..schemas.user import UserResponse, UserUpdate, UserResponseUnknown
 from ..database import get_db
 
-from shared.models import User
+from shared.models import User, UserType
 
 router = APIRouter(
     prefix='/users',
@@ -48,6 +48,31 @@ def update_current_user(updates: UserUpdate, current_user: User = Depends(oauth2
 def delete_current_user(current_user: User = Depends(oauth2.get_current_user), db: Session = Depends(get_db)):
     db.delete(current_user)
     db.commit()
+@router.post('/{username}/promote', status_code=status.HTTP_200_OK, response_model=UserResponse)
+def promote_user(
+    username: str,
+    current_admin: User = Depends(oauth2.get_current_admin),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.username == username).first()
+
+    if not user:
+        raise HTTPException(
+            detail="User with the given username was not found",
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+
+    if user.user_type == UserType.ADMIN:
+        raise HTTPException(
+            detail="User is already an admin",
+            status_code=status.HTTP_409_CONFLICT
+        )
+
+    user.user_type = UserType.ADMIN
+    db.commit()
+    db.refresh(user)
+
+    return user
 
 @router.get('/{username}', status_code=status.HTTP_200_OK)
 def get_user(username: str, db: Session = Depends(get_db), current_user: User | None = Depends(oauth2.get_optional_current_user)):
