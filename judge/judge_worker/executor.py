@@ -65,12 +65,15 @@ class JudgeExecutor:
     ) -> RunResult:
         
         # Build command
+        # Build command
         if language == Language.C:
             inner_cmd = f"{executable_path}"
         elif language == Language.CPP:
             inner_cmd = f"{executable_path}"
         elif language == Language.PYTHON:
             inner_cmd = f"python3 {executable_path}"
+        elif language == Language.JAVASCRIPT:
+            inner_cmd = f"node {executable_path}"
         else:
             raise ValueError(f"Unsupported language: {language}")
 

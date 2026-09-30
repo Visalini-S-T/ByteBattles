@@ -122,9 +122,12 @@ class JudgePipeline:
 
             elif language == Language.PYTHON:
                 executable_path = f"{WORKSPACE_DIR}/main.py"
+
+            elif language == Language.JAVASCRIPT:
+                executable_path = f"{WORKSPACE_DIR}/main.js"
+
             else:
-                raise ValueError(f"Unsupported language: {language}")
-            
+               raise ValueError(f"Unsupported language: {language}")
             if result.verdict == Verdict.PENDING:
                 final_verdict = Verdict.ACCEPTED
                 first_failure = None
