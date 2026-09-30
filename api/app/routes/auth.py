@@ -45,6 +45,37 @@ def register(new_user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return new_user
+@router.post('/login', status_code=status.HTTP_200_OK)
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.username == form_data.username).first()
+
+    if not user:
+        raise HTTPException(
+            detail="Incorrect username or password",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    if not password_manager.verify(form_data.password, user.password_hash):
+        raise HTTPException(
+            detail="Incorrect username or password",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    token_payload = TokenPayload(sub=user.id)
+
+    access_token = oauth2.create_access_token(token_payload)
+    refresh_token = oauth2.create_refresh_token(token_payload)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
 
 @router.post('/bootstrap-admin', status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 def bootstrap_admin(details: AdminBootstrapRequest, db: Session = Depends(get_db)):
