@@ -1,17 +1,16 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apk add --no-cache \
     time \
     coreutils \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates
 
-RUN useradd -m -u 1000 run \
-    && mkdir -p /workspace \
-    && chown -R run:run /workspace
+RUN adduser -D -u 1000 run && \
+    mkdir -p /workspace && \
+    chown -R run:run /workspace
 
 WORKDIR /workspace
 USER run

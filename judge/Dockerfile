@@ -1,7 +1,7 @@
 # Dockerfile - judge
 
-FROM python:3.12-slim AS builder
-RUN apt-get update && apt-get install -y gcc
+FROM python:3.12-bookworm AS builder
+RUN apt-get update && apt-get install -y gcc linux-libc-dev
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uvx /usr/local/bin/uvx
@@ -15,7 +15,7 @@ COPY config.py .
 COPY shared ./shared
 COPY judge ./judge
 
-FROM python:3.12-slim
+FROM python:3.12-bookworm
 
 WORKDIR /src
 COPY --from=builder /src /src

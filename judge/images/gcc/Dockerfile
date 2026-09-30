@@ -1,19 +1,17 @@
-FROM alpine:latest
+FROM judge-python
+
+USER root
 
 RUN apk add --no-cache \
     gcc \
     g++ \
     make \
-    time \
-    coreutils \
-    ca-certificates \
     libc-dev
 
-RUN adduser -D -u 1000 run && \
-    mkdir -p /workspace && \
-    chown -R run:run /workspace
-
 WORKDIR /workspace
+
+RUN chown -R run:run /workspace
+
 USER run
 
 CMD ["sleep", "infinity"]
